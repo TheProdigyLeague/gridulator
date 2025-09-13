@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gridulator</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="icon" href="assets/gear-wheel.svg" type="image/svg+xml">
+</head>
+<body>
+    <div id="scene-container"></div>
+    <div id="cursor">+</div>
+    <div id="console">
+        <div id="console-output"></div>
+        <div id="command-container">
+            <input type="text" id="command-input" placeholder="Enter command... (/help for options)">
+        </div>
+    </div>
+    <div id="maintenance-notice" style="display: none;">
+        <img src="assets/buffering.svg" alt="Loading...">
+        <p>Update: Gridulator Version 0.1 in progress. Server is undergoing maintenance...</p>
+    </div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.132.2/examples/jsm/"
+            }
+        }
+    </script>
+    <script type="module" src="js/script.js"></script>
+</body>
+</html>
