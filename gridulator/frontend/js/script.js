@@ -26,6 +26,13 @@ const divisions = 10;
 const gridHelper = new THREE.GridHelper(size, divisions);
 scene.add(gridHelper);
 
+// Invisible plane for raycasting
+const planeGeometry = new THREE.PlaneGeometry(size, size);
+planeGeometry.rotateX(-Math.PI / 2);
+const planeMaterial = new THREE.MeshBasicMaterial({ visible: false });
+const raycastPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+scene.add(raycastPlane);
+
 // Spawn in the middle
 camera.position.set(0, 1.6, 0); // Eye-level
 
@@ -33,6 +40,7 @@ camera.position.set(0, 1.6, 0); // Eye-level
 let flyMode = false;
 let buildMode = false;
 let buildCube = null;
+const placedCubes = [];
 
 // --- Player ---
 const hand = new THREE.Mesh(
@@ -70,9 +78,26 @@ const consoleOutput = document.getElementById('console-output');
 // Pointer lock for mouse controls
 sceneContainer.addEventListener('click', () => {
     if (buildMode && buildCube) {
-        const newCube = buildCube.clone();
-        newCube.material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-        scene.add(newCube);
+        // Raycast from camera to grid to place a new cube
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+        const intersects = raycaster.intersectObject(raycastPlane); // Use the invisible plane
+
+        if (intersects.length > 0) {
+            const intersect = intersects[0];
+            const newPosition = new THREE.Vector3().copy(intersect.point);
+            newPosition.x = Math.round(newPosition.x);
+            newPosition.y = 0.5; // Place it on the grid
+            newPosition.z = Math.round(newPosition.z);
+
+            const newCube = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 1, 1),
+                buildCube.material.clone() // Clone the material from the hand-held cube
+            );
+            newCube.position.copy(newPosition);
+            scene.add(newCube);
+            placedCubes.push(newCube);
+        }
     } else if (!document.pointerLockElement) {
         sceneContainer.requestPointerLock();
     }
@@ -108,6 +133,16 @@ document.addEventListener('keydown', (event) => {
         case 'KeyS': controls.moveBackward = true; break;
         case 'KeyA': controls.moveLeft = true; break;
         case 'KeyD': controls.moveRight = true; break;
+        case 'KeyC':
+            if (buildMode) {
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+                const intersects = raycaster.intersectObjects(placedCubes);
+                if (intersects.length > 0) {
+                    buildCube.material = intersects[0].object.material.clone();
+                }
+            }
+            break;
     }
 });
 
@@ -129,23 +164,9 @@ function updatePlayer() {
         camera.rotation.y = controls.yaw;
         camera.rotation.x = controls.pitch;
 
-        if (buildMode && buildCube) {
-            // Raycast from camera to grid
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-            const intersects = raycaster.intersectObject(gridHelper);
-
-            if (intersects.length > 0) {
-                const intersect = intersects[0];
-                if (intersect && intersect.face) {
-                    const newPosition = new THREE.Vector3().copy(intersect.point).add(intersect.face.normal);
-                    newPosition.x = Math.round(newPosition.x);
-                    newPosition.y = Math.round(newPosition.y) + 0.5;
-                    newPosition.z = Math.round(newPosition.z);
-                    
-                    buildCube.position.copy(newPosition);
-                }
-            }
+        if (buildMode) {
+            // This block is intentionally left empty. 
+            // The buildCube is now attached to the camera and does not need to be moved by the raycaster here.
         }
 
         hand.visible = !flyMode;
@@ -209,7 +230,7 @@ commandInput.addEventListener('blur', () => {
 
 function logToConsole(message) {
     const p = document.createElement('p');
-    p.textContent = message;
+    p.innerHTML = message; // Use innerHTML to allow for colored text
     consoleOutput.appendChild(p);
     consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
@@ -230,15 +251,21 @@ function handleCommand(command) {
 
     switch (commandName) {
         case '/help':
-            logToConsole('Available commands: /build [on|off], /fly [on|off]');
+            logToConsole('Available commands:<br>' +
+                '&nbsp;&nbsp;<span style="color: #00ff00;">/build [on|off]</span> - Toggle build mode.<br>' +
+                '&nbsp;&nbsp;<span style="color: #00ff00;">/fly [on|off]</span> - Toggle fly mode.<br>' +
+                '&nbsp;&nbsp;<span style="color: #00ff00;">C</span> - Clone the material of the cube you are looking at.');
             break;
         case '/build':
             if (arg === 'on') {
                 buildMode = true;
+                consoleEl.style.display = 'none';
+                sceneContainer.requestPointerLock();
                 const geometry = new THREE.BoxGeometry(1, 1, 1);
                 const material = new THREE.MeshStandardMaterial({ color: 0x00ff00, transparent: true, opacity: 0.5 });
                 buildCube = new THREE.Mesh(geometry, material);
-                scene.add(buildCube);
+                camera.add(buildCube);
+                buildCube.position.set(0.5, -0.3, -1.5);
             } else if (arg === 'off') {
                 buildMode = false;
                 if (buildCube) {
@@ -252,6 +279,8 @@ function handleCommand(command) {
         case '/fly':
             if (arg === 'on') {
                 flyMode = true;
+                consoleEl.style.display = 'none';
+                sceneContainer.requestPointerLock();
                 logToConsole('Fly mode enabled.');
             } else if (arg === 'off') {
                 flyMode = false;
@@ -265,4 +294,8 @@ function handleCommand(command) {
     }
 }
 
-logToConsole('Welcome to Gridulator! Type /help for a list of commands.');
+logToConsole('Welcome to Gridulator! Here are some tips to get you started:<br>' +
+    '&nbsp;&nbsp;- Type <span style="color: #00ff00;">/build on</span> to start building.<br>' +
+    '&nbsp;&nbsp;- Left-click to place a cube.<br>' +
+    '&nbsp;&nbsp;- While in build mode, look at a placed cube and press <span style="color: #00ff00;">C</span> to clone its color.<br>' +
+    '&nbsp;&nbsp;- Type <span style="color: #00ff00;">/help</span> for a full list of commands.');
